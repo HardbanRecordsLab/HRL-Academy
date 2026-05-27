@@ -128,6 +128,7 @@ export default function App() {
   const [adminUsersList, setAdminUsersList] = useState<any[]>([]);
   const [adminLogsList, setAdminLogsList] = useState<ActivityLog[]>([]);
   const [adminCertificatesList, setAdminCertificatesList] = useState<any[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [isAccessReportOpen, setIsAccessReportOpen] = useState(false);
 
   // Internal Certificate Generator states
@@ -381,27 +382,69 @@ export default function App() {
       } else {
         // Admin Tab Data Fetches
         const adminHeaders = getAuthHeader();
+        
         if (adminTab === 'stats') {
-          const statRes = await fetch('/api/admin/stats', { headers: adminHeaders });
-          setAdminStats(await statRes.json());
+          setAdminLoading(true);
+          try {
+            const statRes = await fetch('/api/admin/stats', { headers: adminHeaders });
+            if (!statRes.ok) throw new Error(`HTTP ${statRes.status}`);
+            const data = await statRes.json();
+            setAdminStats(data);
+          } catch (err) {
+            console.error("Admin stats fetch error:", err);
+            addToast("Błąd ładowania statystyk administratora", 'warning');
+            setAdminStats(null);
+          } finally {
+            setAdminLoading(false);
+          }
         } else if (adminTab === 'courses') {
-          const courseListRes = await fetch('/api/courses', { headers: adminHeaders });
-          setStudentCourses(await courseListRes.json());
-          
-          const adminCourseListRes = await fetch('/api/admin/courses', { headers: adminHeaders });
-          setAdminCoursesList(await adminCourseListRes.json());
+          setAdminLoading(true);
+          try {
+            const courseListRes = await fetch('/api/courses', { headers: adminHeaders });
+            if (courseListRes.ok) setStudentCourses(await courseListRes.json());
+            
+            const adminCourseListRes = await fetch('/api/admin/courses', { headers: adminHeaders });
+            if (adminCourseListRes.ok) setAdminCoursesList(await adminCourseListRes.json());
+          } catch (err) {
+            console.error("Admin courses fetch error:", err);
+            addToast("Błąd ładowania kursów", 'warning');
+          } finally {
+            setAdminLoading(false);
+          }
         } else if (adminTab === 'users') {
-          const usersRes = await fetch('/api/admin/users', { headers: adminHeaders });
-          setAdminUsersList(await usersRes.json());
+          setAdminLoading(true);
+          try {
+            const usersRes = await fetch('/api/admin/users', { headers: adminHeaders });
+            if (usersRes.ok) setAdminUsersList(await usersRes.json());
+          } catch (err) {
+            console.error("Admin users fetch error:", err);
+            addToast("Błąd ładowania użytkowników", 'warning');
+          } finally {
+            setAdminLoading(false);
+          }
         } else if (adminTab === 'certificates') {
-          const certsRes = await fetch('/api/admin/certificates', { headers: adminHeaders });
-          if (certsRes.ok) setAdminCertificatesList(await certsRes.json());
+          setAdminLoading(true);
+          try {
+            const certsRes = await fetch('/api/admin/certificates', { headers: adminHeaders });
+            if (certsRes.ok) setAdminCertificatesList(await certsRes.json());
+          } catch (err) {
+            console.error("Admin certificates fetch error:", err);
+          } finally {
+            setAdminLoading(false);
+          }
         } else if (adminTab === 'security' || adminTab === 'payments') {
-          const logsRes = await fetch('/api/admin/logs', { headers: adminHeaders });
-          setAdminLogsList(await logsRes.json());
+          setAdminLoading(true);
+          try {
+            const logsRes = await fetch('/api/admin/logs', { headers: adminHeaders });
+            if (logsRes.ok) setAdminLogsList(await logsRes.json());
 
-          const statRes = await fetch('/api/admin/stats', { headers: adminHeaders });
-          setAdminStats(await statRes.json());
+            const statRes = await fetch('/api/admin/stats', { headers: adminHeaders });
+            if (statRes.ok) setAdminStats(await statRes.json());
+          } catch (err) {
+            console.error("Admin logs/stats fetch error:", err);
+          } finally {
+            setAdminLoading(false);
+          }
         }
       }
     } catch (err) {
@@ -1802,9 +1845,53 @@ export default function App() {
           )}
 
           {/* PORTAL VIEW: ADMIN */}
-          {activePortal === 'admin' && adminStats && (
+          {activePortal === 'admin' && (
             <div className="space-y-10 min-h-screen bg-brand-bg text-[#f5f0e6] p-6">
               
+              {/* LOADING STATE */}
+              {adminLoading && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-center justify-center py-20"
+                >
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                    className="w-16 h-16 border-4 border-brand-gold border-t-transparent rounded-full"
+                  />
+                  <span className="ml-6 text-lg text-[#f5f0e6] font-medium">
+                    Ładowanie panelu administratora...
+                  </span>
+                </motion.div>
+              )}
+
+              {/* ERROR STATE */}
+              {!adminLoading && !adminStats && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-rose-500/10 border border-rose-500/30 p-8 rounded-2xl text-rose-300 flex items-start gap-4"
+                >
+                  <AlertCircle size={24} className="mt-1 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Błąd ładowania</h3>
+                    <p className="text-sm mb-4">
+                      Nie udało się załadować statystyk panelu administratora.
+                    </p>
+                    <button
+                      onClick={() => { setAdminStats(null); fetchDashboardData(); }}
+                      className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 rounded-lg text-sm font-medium transition"
+                    >
+                      Spróbuj ponownie
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* CONTENT STATE */}
+              {!adminLoading && adminStats && (
+              <>
               {/* ADMIN NAVIGATION (HORIZONTAL) */}
               <div className="flex flex-wrap items-center gap-2">
                 {[
