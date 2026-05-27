@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-bg: #0b0f19;
+  --color-brand-card: rgba(22, 30, 49, 0.6);
+  --color-brand-border: rgba(56, 189, 248, 0.15);
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-accent-blue: #38bdf8;
+  --color-accent-purple: #a855f7;
+  --color-accent-gold: #c8a96e;
+  
+  --font-sans: "Inter", sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-cinzel: "Cinzel", serif;
+  --font-syne: "Syne", sans-serif;
+  --font-figtree: "Figtree", sans-serif;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Inter:wght@300;400;600;700&family=Space+Grotesk:wght@500;700&family=Playfair+Display:ital,wght@0,700;1,400&family=Syne:wght@400;700;800&family=Figtree:wght@300;400;500;600;700&display=swap');
+
+body {
+  @apply bg-brand-bg text-text-primary antialiased;
+}
+
+::selection {
+  background-color: var(--color-accent-blue);
+  color: var(--color-brand-bg);
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-200%); }
+  100% { transform: translateX(200%); }
+}
+
+@layer utilities {
+  .animate-shimmer {
+    animation: shimmer 3s infinite;
+  }
+}

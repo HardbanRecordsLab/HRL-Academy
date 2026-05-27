@@ -1,0 +1,5 @@
+{
+  "name": "CourseHub Manager",
+  "description": "A technical bridge between membership systems and external e-learning platforms using JWT-based authentication.",
+  "requestFramePermissions": []
+}
