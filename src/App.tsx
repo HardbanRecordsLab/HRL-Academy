@@ -1891,7 +1891,7 @@ export default function App() {
 
               {/* CONTENT STATE */}
               {!adminLoading && adminStats && (
-              <>
+              <div>
               {/* ADMIN NAVIGATION (HORIZONTAL) */}
               <div className="flex flex-wrap items-center gap-2">
                 {[
@@ -2441,7 +2441,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
               )}
 
         </main>
