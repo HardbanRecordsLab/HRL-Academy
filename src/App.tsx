@@ -1661,7 +1661,6 @@ export default function App() {
                   </div>
 
                 </div>
-              </>
               )}
 
               {/* STUDENT TAB: DOWNLOADS */}
@@ -2442,6 +2441,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+              </>
               )}
 
         </main>
