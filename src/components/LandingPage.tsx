@@ -1,11 +1,57 @@
 import React from 'react';
-import { motion } from 'motion/react';
-import { PlayCircle, ArrowRight, Layers, Award, Users, Rocket, Smartphone, Share2, Check, X, Target, Play, Star, ChevronDown, Globe, ShieldCheck } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { PlayCircle, ArrowRight, Layers, Award, Users, Rocket, Smartphone, Share2, Check, X, Target, Play, Star, ChevronDown, Globe, ShieldCheck, LogIn, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 // @ts-ignore
 import logoUrl from '../assets/images/hrl_academy_logo_1779373295965.png';
 
-export function LandingPage({ onEnter }: { onEnter: () => void }) {
+export function LandingPage({ onEnter }: { onEnter?: () => void }) {
   const [openFaq, setOpenFaq] = React.useState<number | null>(null);
+
+  // Login modal state
+  const [loginOpen, setLoginOpen] = React.useState(false);
+  const [loginEmail, setLoginEmail] = React.useState('');
+  const [loginPassword, setLoginPassword] = React.useState('');
+  const [loginLoading, setLoginLoading] = React.useState(false);
+  const [loginError, setLoginError] = React.useState<string | null>(null);
+  const [showPassword, setShowPassword] = React.useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      setLoginError('Wprowadź email i hasło');
+      return;
+    }
+
+    setLoginLoading(true);
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: loginEmail.trim(),
+          password: loginPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.error || 'Nieprawidłowy email lub hasło');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('hrl_sso_token_v3', data.token);
+
+      window.location.reload();
+    } catch (err: any) {
+      setLoginError(err.message || 'Nieprawidłowy email lub hasło');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#070709] text-slate-300 font-sans selection:bg-[#534AB7]/30 overflow-x-hidden relative">
@@ -30,6 +76,13 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
           <div className="hidden md:flex items-center space-x-6">
             <button onClick={onEnter} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Wszystkie Kursy</button>
           </div>
+          <button 
+            onClick={() => setLoginOpen(true)}
+            className="group flex items-center space-x-2 bg-[#534AB7]/90 hover:bg-[#534AB7] border border-[#534AB7]/50 px-5 py-2.5 rounded-full text-sm font-medium text-white transition-all backdrop-blur-md hover:shadow-[0_0_20px_-5px_rgba(83,74,183,0.4)]"
+          >
+            <LogIn size={14} />
+            <span>Zaloguj</span>
+          </button>
           <button 
             onClick={onEnter}
             className="group flex items-center space-x-2 bg-white/5 hover:bg-white/10 border border-white/10 px-5 py-2.5 rounded-full text-sm font-medium text-white transition-all backdrop-blur-md hover:shadow-[0_0_20px_-5px_rgba(255,255,255,0.1)]"
@@ -399,6 +452,143 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
       <footer className="border-t border-white/5 py-8 text-center text-sm text-[#A6A3B9] font-[Figtree] relative z-10">
         © {new Date().getFullYear()} Hardban Records Lab. Wszelkie prawa zastrzeżone w pełnej krasie infrastruktury deweloperskiej.
       </footer>
+
+      {/* Login Modal */}
+      <AnimatePresence>
+        {loginOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              onClick={() => { if (!loginLoading) { setLoginOpen(false); setLoginError(null); } }}
+              className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md"
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-0 z-[101] flex items-center justify-center p-4"
+            >
+              <div className="bg-[#12121A] border border-[#534AB7]/30 rounded-2xl w-full max-w-md p-8 shadow-[0_0_60px_-10px_rgba(83,74,183,0.3)] relative overflow-hidden">
+                {/* Decorative glow */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-[#534AB7]/10 rounded-full blur-[100px] pointer-events-none" />
+
+                <div className="relative z-10">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-8">
+                    <div>
+                      <h2 className="font-[Syne] text-2xl font-[800] text-white">Zaloguj</h2>
+                      <p className="text-[13px] text-[#A6A3B9] font-[Figtree] mt-1">Wprowadź swoje dane, aby kontynuować</p>
+                    </div>
+                    <button
+                      onClick={() => { setLoginOpen(false); setLoginError(null); }}
+                      disabled={loginLoading}
+                      className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-[#A6A3B9] hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Form */}
+                  <form onSubmit={handleLogin} className="space-y-5">
+                    {/* Error message */}
+                    <AnimatePresence>
+                      {loginError && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          className="flex items-start gap-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl p-3.5"
+                        >
+                          <AlertCircle className="text-rose-400 mt-0.5 shrink-0" size={16} />
+                          <p className="text-[13px] text-rose-300 font-[Figtree] leading-relaxed">{loginError}</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Email field */}
+                    <div>
+                      <label htmlFor="login-email" className="block text-[12px] font-bold text-[#A6A3B9] uppercase tracking-[0.06em] mb-2 font-[Figtree]">
+                        Email
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-0 top-0 bottom-0 w-10 flex items-center justify-center pointer-events-none text-[#534AB7]">
+                          <Mail size={17} />
+                        </div>
+                        <input
+                          id="login-email"
+                          type="email"
+                          autoComplete="email"
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                          disabled={loginLoading}
+                          placeholder="twoj@email.com"
+                          className="w-full bg-[#0A0A10] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white text-[14px] font-[Figtree] placeholder:text-[#A6A3B9]/40 outline-none focus:border-[#534AB7]/60 focus:ring-1 focus:ring-[#534AB7]/30 transition-all disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Password field */}
+                    <div>
+                      <label htmlFor="login-password" className="block text-[12px] font-bold text-[#A6A3B9] uppercase tracking-[0.06em] mb-2 font-[Figtree]">
+                        Hasło
+                      </label>
+                      <div className="relative">
+                        <div className="absolute left-0 top-0 bottom-0 w-10 flex items-center justify-center pointer-events-none text-[#534AB7]">
+                          <Lock size={17} />
+                        </div>
+                        <input
+                          id="login-password"
+                          type={showPassword ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          value={loginPassword}
+                          onChange={(e) => setLoginPassword(e.target.value)}
+                          disabled={loginLoading}
+                          placeholder="••••••••"
+                          className="w-full bg-[#0A0A10] border border-white/10 rounded-xl py-3 pl-10 pr-12 text-white text-[14px] font-[Figtree] placeholder:text-[#A6A3B9]/40 outline-none focus:border-[#534AB7]/60 focus:ring-1 focus:ring-[#534AB7]/30 transition-all disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          disabled={loginLoading}
+                          className="absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center text-[#A6A3B9] hover:text-white transition-colors disabled:opacity-50"
+                        >
+                          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Submit button */}
+                    <button
+                      type="submit"
+                      disabled={loginLoading}
+                      className="w-full flex items-center justify-center space-x-2 bg-[#534AB7] hover:bg-[#433A9B] text-white rounded-xl py-3.5 font-[Figtree] font-bold text-[15px] transition-colors shadow-lg disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                    >
+                      {loginLoading ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          <span>Logowanie...</span>
+                        </>
+                      ) : (
+                        <>
+                          <LogIn size={18} />
+                          <span>Zaloguj</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
