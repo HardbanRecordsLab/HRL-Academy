@@ -749,6 +749,10 @@ export default function App() {
     }
   };
 
+  // Jeśli brak tokena, nie ładuj NIC. Tylko LandingPage.
+  const token = localStorage.getItem('hrl_sso_token_v3');
+  if (!token) return <LandingPage onEnter={() => setShowLanding(false)} />;
+
   if (loading && !showLanding) {
     return (
       <div className="min-h-screen bg-[rgb(250,250,250)] flex flex-col items-center justify-center p-6">
