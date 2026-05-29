@@ -237,7 +237,8 @@ export default function App() {
     setResendingCertId(certId);
     setResendSuccessMessage(null);
     try {
-      const authHeader = { 'x-user-id': currentUser?.id.toString() || '2' };
+      if (!currentUser) return;
+      const authHeader = { 'x-user-id': currentUser.id.toString() };
       const res = await fetch(`/api/certificates/${certId}/resend`, {
         method: 'POST',
         headers: authHeader
@@ -268,9 +269,10 @@ export default function App() {
   }, [currentUser]);
 
   const getAuthHeader = () => {
+    if (!currentUser) return {};
     const token = localStorage.getItem('hrl_jwt_token');
     const headers: Record<string, string> = {
-      'x-user-id': currentUser?.id.toString() || '2'
+      'x-user-id': currentUser.id.toString()
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -537,7 +539,8 @@ export default function App() {
     setActiveLesson(null);
     setLessonAccessDetails(null);
     try {
-      const authHeader = { 'x-user-id': currentUser?.id.toString() || '2' };
+      if (!currentUser) return;
+      const authHeader = { 'x-user-id': currentUser.id.toString() };
       const res = await fetch(`/api/courses/${course.id}`, { headers: authHeader });
       const struct = await res.json();
       setCourseStructure(struct);
@@ -553,7 +556,8 @@ export default function App() {
     setSigningToken(true);
     setErrorMessage(null);
     try {
-      const authHeader = { 'x-user-id': currentUser?.id.toString() || '2' };
+      if (!currentUser) return;
+      const authHeader = { 'x-user-id': currentUser.id.toString() };
       const res = await fetch(`/api/lessons/${lesson.id}`, { headers: authHeader });
       const details = await res.json();
       
@@ -807,7 +811,7 @@ export default function App() {
               <button 
                 onClick={() => { 
                   if (currentUser?.role !== 'admin') {
-                    alert("Zmień konto na 'Jan Kowalski (ADMIN)' u góry ekranu, aby wejść do panelu.");
+                    addToast("Brak uprawnień administratora.", 'warning');
                     return;
                   }
                   setActivePortal('admin'); 
@@ -873,7 +877,7 @@ export default function App() {
 
           <div className="mt-auto pt-6 space-y-3">
             <div className="bg-brand-card p-4 rounded-xl border border-brand-border">
-              <p className="text-[10px] font-mono text-text-secondary">OBECNA ROLA (DEBUG)</p>
+              <p className="text-[10px] font-mono text-text-secondary">OBECNA ROLA</p>
               <p className="text-sm font-semibold mt-1 text-text-primary">
                 {currentUser?.role === 'admin' ? 'Super Administrator' : currentUser?.role === 'creator' ? 'Trener (Podgląd)' : 'Aktywny Kursant'}
               </p>
@@ -2617,7 +2621,7 @@ export default function App() {
                           <p className="text-text-secondary mt-0.5">Zatwierdzono: 2026.05.20</p>
                         </div>
                         <div className="text-right">
-                          <p className="opacity-75 italic font-serif text-xs text-text-primary font-bold">Jan Kowalski</p>
+                          <p className="opacity-75 italic font-serif text-xs text-text-primary font-bold">HRL Academy</p>
                           <p className="font-bold uppercase tracking-wider text-[8px] border-t border-brand-border pt-0.5 mt-0.5">Dyrektor Programowy</p>
                         </div>
                       </div>
