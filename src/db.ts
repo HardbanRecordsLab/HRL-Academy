@@ -154,6 +154,27 @@ db.exec(`
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS quiz_questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lesson_id INTEGER,
+      question_text TEXT NOT NULL,
+      options_json TEXT NOT NULL DEFAULT '[]',
+      correct_option_index INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS quiz_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      lesson_id INTEGER,
+      score_percent INTEGER DEFAULT 0,
+      passed BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+  );
+
   -- High-performance database indexing for self-hosted VPS production load
   CREATE INDEX IF NOT EXISTS idx_enrollments_user_course ON enrollments (user_id, course_id);
   CREATE INDEX IF NOT EXISTS idx_lessons_course_module ON lessons (course_id, module_id);
@@ -175,6 +196,60 @@ try {
   console.log("Migration: Added template_style column to certificates table successfully.");
 } catch (e: any) {
   console.log("Migration template_style (Ignore if columns exist):", e.message);
+}
+
+try {
+  db.exec("ALTER TABLE lessons ADD COLUMN passing_score INTEGER DEFAULT 0;");
+  console.log("Migration: Added passing_score column to lessons table successfully.");
+} catch (e: any) {
+  console.log("Migration passing_score (Ignore if columns exist):", e.message);
+}
+
+// =============================================================================
+// SEED DANYCH — niezbędne przy Vercel cold start (SQLite jest za każdym razem pusta)
+// Wstawia domyślnego admina i demo kursy tylko jeśli tabela users jest pusta.
+// =============================================================================
+const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
+if (userCount.count === 0) {
+  console.log("[SEED] Baza pusta — wstawiam dane startowe...");
+
+  // Hash dla hasła "Admin123!" (SHA256 z solą)
+  const ADMIN_PASSWORD_HASH = "ee6d37fefcdf935f609b37cdbeb749dccac430638a0e537078a964ff20944754";
+
+  db.prepare(`
+    INSERT INTO users (email, password_hash, first_name, last_name, role, status)
+    VALUES
+      ('admin@hrl.pl', '${ADMIN_PASSWORD_HASH}', 'HRL', 'Administrator', 'admin', 'active'),
+      ('student@hrl.pl', '${ADMIN_PASSWORD_HASH}', 'Jan', 'Kowalski', 'student', 'active'),
+      ('creator@hrl.pl', '${ADMIN_PASSWORD_HASH}', 'Anna', 'Nowak', 'creator', 'active')
+  `).run();
+  console.log("[SEED] Wstawiono 3 użytkowników (admin@hrl.pl / Admin123!)");
+
+  // Demo kurs
+  const courseResult = db.prepare(`
+    INSERT INTO courses (title, slug, description, thumbnail, access_type, price, status, created_by)
+    VALUES ('Wprowadzenie do HRL Academy', 'wprowadzenie-hrl', 'Podstawowy kurs demonstracyjny platformy HRL Academy.', 'https://picsum.photos/seed/hrlc/800/450', 'free', 0, 'published', 1)
+  `).run();
+  const courseId = courseResult.lastInsertRowid;
+  console.log(`[SEED] Wstawiono kurs demo (id=${courseId})`);
+
+  // Moduł i lekcja demo
+  const moduleResult = db.prepare(`
+    INSERT INTO modules (course_id, title, module_order) VALUES (?, 'Moduł 1: Podstawy', 1)
+  `).run(courseId);
+  const moduleId = moduleResult.lastInsertRowid;
+
+  db.prepare(`
+    INSERT INTO lessons (course_id, module_id, title, slug, source_url, source_type, access_level, lesson_order, duration_minutes)
+    VALUES (?, ?, 'Lekcja 1: Witamy w HRL Academy', 'witamy-hrl', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'video', 'free', 1, 5)
+  `).run(courseId, moduleId);
+  console.log("[SEED] Wstawiono moduł i lekcję demo");
+
+  // Enrollment dla studenta
+  db.prepare(`
+    INSERT INTO enrollments (user_id, course_id, access_type) VALUES (2, ?, 'free')
+  `).run(courseId);
+  console.log("[SEED] Seed zakończony.");
 }
 
 export default db;

@@ -283,25 +283,28 @@ export default function App() {
   const fetchInitialAuth = async () => {
     try {
       setErrorMessage(null);
-      const token = localStorage.getItem('hrl_jwt_token');
+      const token = localStorage.getItem('hrl_jwt_token') || localStorage.getItem('hrl_sso_token_v3');
       const headers: Record<string, string> = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
       const res = await fetch("/api/auth/me", { headers });
       if (res.status === 401) {
-        // Token invalid — clear it and treat as unauthenticated
+        // Token invalid — clear both storages and treat as unauthenticated
         localStorage.removeItem('hrl_jwt_token');
+        localStorage.removeItem('hrl_sso_token_v3');
         setCurrentUser(null);
-        setErrorMessage("Sesja wygasła. Zaloguj się ponownie.");
+        setShowLanding(true);
       } else {
         const meText = await res.text();
         const me = meText ? JSON.parse(meText) : null;
         if (res.ok && me) {
           if (me.token) {
             localStorage.setItem('hrl_jwt_token', me.token);
+            localStorage.setItem('hrl_sso_token_v3', me.token);
           }
           setCurrentUser(me);
+          setShowLanding(false);
           if (me.role === 'admin') {
             setActivePortal('admin');
           } else {
@@ -310,7 +313,7 @@ export default function App() {
         } else {
           // GET /api/auth/me returned null or error — stay unauthenticated, redirect to auth
           setCurrentUser(null);
-          setErrorMessage("Użytkownik niezaladowany. Zaloguj się.");
+          setShowLanding(true);
         }
       }
 
