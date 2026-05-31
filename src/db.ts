@@ -55,6 +55,7 @@ db.exec(`
       lesson_order INTEGER DEFAULT 0,
       drip_days INTEGER DEFAULT 0,
       duration_minutes INTEGER DEFAULT 0,
+      passing_score INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE,
       FOREIGN KEY(module_id) REFERENCES modules(id) ON DELETE CASCADE
@@ -110,6 +111,26 @@ db.exec(`
       UNIQUE(user_id, lesson_id)
   );
 
+  CREATE TABLE IF NOT EXISTS quiz_questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lesson_id INTEGER NOT NULL,
+      question_text TEXT NOT NULL,
+      options_json TEXT NOT NULL,
+      correct_option_index INTEGER NOT NULL,
+      FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS quiz_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      lesson_id INTEGER NOT NULL,
+      score_percent INTEGER NOT NULL,
+      passed BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS access_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -154,27 +175,6 @@ db.exec(`
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
-  CREATE TABLE IF NOT EXISTS quiz_questions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      lesson_id INTEGER,
-      question_text TEXT NOT NULL,
-      options_json TEXT NOT NULL DEFAULT '[]',
-      correct_option_index INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS quiz_attempts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      lesson_id INTEGER,
-      score_percent INTEGER DEFAULT 0,
-      passed BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
-  );
-
   -- High-performance database indexing for self-hosted VPS production load
   CREATE INDEX IF NOT EXISTS idx_enrollments_user_course ON enrollments (user_id, course_id);
   CREATE INDEX IF NOT EXISTS idx_lessons_course_module ON lessons (course_id, module_id);
@@ -205,51 +205,215 @@ try {
   console.log("Migration passing_score (Ignore if columns exist):", e.message);
 }
 
-// =============================================================================
-// SEED DANYCH — niezbędne przy Vercel cold start (SQLite jest za każdym razem pusta)
-// Wstawia domyślnego admina i demo kursy tylko jeśli tabela users jest pusta.
-// =============================================================================
-const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
-if (userCount.count === 0) {
-  console.log("[SEED] Baza pusta — wstawiam dane startowe...");
+// Seed data function to prepopulate tables with realistic data for live preview
+const seedData = () => {
+  const usersCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+  if (usersCount.count === 0) {
+    // 1. Seed users (admin, student, creator)
+    const insertUser = db.prepare(`
+      INSERT INTO users (email, password_hash, first_name, last_name, role, status)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    
+    insertUser.run('admin@hrl.academy', 'hashed_pass_123', 'Jan', 'Kowalski', 'admin', 'active');
+    insertUser.run('student@hrl.academy', 'hashed_pass_456', 'Michał', 'Nowak', 'student', 'active');
+    insertUser.run('creator@hrl.academy', 'hashed_pass_789', 'Maria', 'Wiśniewska', 'creator', 'active');
 
-  // Hash dla hasła "Admin123!" (SHA256 z solą)
-  const ADMIN_PASSWORD_HASH = "ee6d37fefcdf935f609b37cdbeb749dccac430638a0e537078a964ff20944754";
+    // 2. Seed courses
+    const insertCourse = db.prepare(`
+      INSERT INTO courses (title, slug, description, thumbnail, access_type, price, status, created_by, external_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
-  db.prepare(`
-    INSERT INTO users (email, password_hash, first_name, last_name, role, status)
-    VALUES
-      ('admin@hrl.pl', '${ADMIN_PASSWORD_HASH}', 'HRL', 'Administrator', 'admin', 'active'),
-      ('student@hrl.pl', '${ADMIN_PASSWORD_HASH}', 'Jan', 'Kowalski', 'student', 'active'),
-      ('creator@hrl.pl', '${ADMIN_PASSWORD_HASH}', 'Anna', 'Nowak', 'creator', 'active')
-  `).run();
-  console.log("[SEED] Wstawiono 3 użytkowników (admin@hrl.pl / Admin123!)");
+    insertCourse.run(
+      'Docker & Kubernetes Core Accelerator', 
+      'docker-kubernetes-accelerator', 
+      'Przejdź od podstaw konteneryzacji do produkcyjnego wdrażania złożonych mikroserwisów w środowisku Kubernetes. Program zawiera lekcje wideo, laboratoria oraz instrukcje produkcyjne UFW/Nginx.', 
+      'https://picsum.photos/seed/docker/800/450', 
+      'premium', 
+      499.00, 
+      'published', 
+      1,
+      'https://v1.kubernetes.io/docs/home/'
+    );
 
-  // Demo kurs
-  const courseResult = db.prepare(`
-    INSERT INTO courses (title, slug, description, thumbnail, access_type, price, status, created_by)
-    VALUES ('Wprowadzenie do HRL Academy', 'wprowadzenie-hrl', 'Podstawowy kurs demonstracyjny platformy HRL Academy.', 'https://picsum.photos/seed/hrlc/800/450', 'free', 0, 'published', 1)
-  `).run();
-  const courseId = courseResult.lastInsertRowid;
-  console.log(`[SEED] Wstawiono kurs demo (id=${courseId})`);
+    insertCourse.run(
+      'Security Engineering: Cybersec Handbook', 
+      'security-engineering-handbook', 
+      'Zaawansowane techniki ochrony aplikacji webowych, zapobieganie exploitom, i konfiguracja systemów IDS/IPS w chmurach. Opracowane we współpracy z ekspertami branżowymi.', 
+      'https://picsum.photos/seed/security/800/450', 
+      'subscription', 
+      29.99, 
+      'published', 
+      1,
+      'https://owasp.org/www-project-top-ten/'
+    );
 
-  // Moduł i lekcja demo
-  const moduleResult = db.prepare(`
-    INSERT INTO modules (course_id, title, module_order) VALUES (?, 'Moduł 1: Podstawy', 1)
-  `).run(courseId);
-  const moduleId = moduleResult.lastInsertRowid;
+    insertCourse.run(
+      'Cloud Architecture Foundations', 
+      'cloud-architecture-foundations', 
+      'Wprowdzenie do nowoczesnej architektury chmurowej, projektowania systemów High Availability i automatyzacji IaC przy użyciu Terraform.', 
+      'https://picsum.photos/seed/cloud/800/450', 
+      'free', 
+      0.00, 
+      'published', 
+      3,
+      'https://aws.amazon.com/architecture/'
+    );
 
-  db.prepare(`
-    INSERT INTO lessons (course_id, module_id, title, slug, source_url, source_type, access_level, lesson_order, duration_minutes)
-    VALUES (?, ?, 'Lekcja 1: Witamy w HRL Academy', 'witamy-hrl', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'video', 'free', 1, 5)
-  `).run(courseId, moduleId);
-  console.log("[SEED] Wstawiono moduł i lekcję demo");
+    // 3. Seed modules
+    const insertModule = db.prepare(`
+      INSERT INTO modules (course_id, title, module_order)
+      VALUES (?, ?, ?)
+    `);
+    
+    // Modules for Course 1
+    insertModule.run(1, 'Wprowadzenie do Konteneryzacji (Docker)', 1);
+    insertModule.run(1, 'Zaawansowana Orkiestracja w Kubernetes (K8s)', 2);
+    
+    // Modules for Course 2
+    insertModule.run(2, 'Modelowanie Zagrożeń (Threat Modeling)', 1);
+    insertModule.run(2, 'Testy Penetracyjne & Bezpieczeństwo Kodu', 2);
+    
+    // Modules for Course 3
+    insertModule.run(3, 'Podstawowe Koncepcje Chmurowe', 1);
 
-  // Enrollment dla studenta
-  db.prepare(`
-    INSERT INTO enrollments (user_id, course_id, access_type) VALUES (2, ?, 'free')
-  `).run(courseId);
-  console.log("[SEED] Seed zakończony.");
+    // 4. Seed lessons
+    const insertLesson = db.prepare(`
+      INSERT INTO lessons (course_id, module_id, title, slug, source_url, source_type, access_level, lesson_order, drip_days, duration_minutes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // Lessons for Docker/Kubernetes (Course 1)
+    insertLesson.run(1, 1, 'Dlaczego konteneryzacja? Podstawy i architektura', 'containers-basics-and-architecture', 'https://bunny-stream.example.com/play/docker-basics-101', 'video', 'free', 1, 0, 15);
+    insertLesson.run(1, 1, 'Tworzenie i optymalizacja obrazów (Dockerfile)', 'writing-optimizing-dockerfiles', 'https://bunny-stream.example.com/play/dockerfile-tips', 'video', 'premium', 2, 0, 22);
+    insertLesson.run(1, 1, 'Komendy Docker-CLI: Podręczny Cheat-Sheet', 'docker-cli-cheat-sheet', 'https://bunny-stream.example.com/downloads/docker-cheat-sheet.pdf', 'download', 'premium', 3, 0, 5);
+    
+    insertLesson.run(1, 2, 'Architektura k8s: Control Plane i Worker Nodes', 'k8s-architecture-control-plane', 'https://bunny-stream.example.com/play/k8s-architecture', 'video', 'premium', 1, 3, 30);
+    insertLesson.run(1, 2, 'Wdrożenie pierwszej aplikacji w k8s (Manifesty YAML)', 'deploying-first-app-k8s', 'https://bunny-stream.example.com/play/k8s-manifests', 'video', 'premium', 2, 5, 25);
+
+    // Lessons for Security Engineering (Course 2)
+    insertLesson.run(2, 3, 'Wstęp do OWASP Top 10 w praktyce produkcyjnej', 'intro-owasp-top-10', 'https://bunny-stream.example.com/play/owasp-intro', 'video', 'premium', 1, 0, 18);
+    insertLesson.run(2, 3, 'Symulacja podatności SQL Injection - Lab Kontener', 'sqli-vulnerability-sandbox', 'https://bunny-stream.example.com/labs/sqli-sandbox', 'iframe', 'premium', 2, 0, 45);
+
+    // Lessons for Cloud Foundations (Course 3)
+    insertLesson.run(3, 5, 'Model IaaS, PaaS i SaaS - Kluczowe Różnice', 'iaas-paas-saas-differences', 'https://bunny-stream.example.com/play/cloud-models', 'video', 'free', 1, 0, 12);
+    insertLesson.run(3, 5, 'Zarządzanie kosztami chmurowymi (FinOps)', 'cloud-cost-management', 'https://bunny-stream.example.com/pdfs/finops-fundamentals.pdf', 'pdf', 'free', 2, 0, 15);
+
+    // 5. Seed enrollments for student Michał Nowak (user_id = 2)
+    const insertEnrollment = db.prepare(`
+      INSERT INTO enrollments (user_id, course_id, access_type, expires_at)
+      VALUES (?, ?, ?, ?)
+    `);
+    insertEnrollment.run(2, 1, 'paid', '2027-12-31 23:59:59'); // Paid access to course 1
+    insertEnrollment.run(2, 3, 'free', null); // Free access to course 3
+
+    // 6. Seed Subscriptions
+    db.prepare(`
+      INSERT INTO subscriptions (user_id, provider_subscription_id, plan_name, status, started_at, expires_at)
+      VALUES (?, ?, ?, ?, datetime('now', '-5 days'), datetime('now', '+25 days'))
+    `).run(2, 'sub_stripe_123456', 'HRL Premium Access Plan', 'active');
+
+    // Grant access to course 2 via active subscription
+    insertEnrollment.run(2, 2, 'subscription', '2026-06-25 10:00:00');
+
+    // 7. Seed payments
+    const insertPayment = db.prepare(`
+      INSERT INTO payments (user_id, course_id, payment_provider, transaction_id, amount, currency, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    insertPayment.run(2, 1, 'Stripe', 'txn_stripe_docker_499', 499.00, 'USD', 'completed');
+    insertPayment.run(2, 2, 'LemonSqueezy', 'txn_ls_sub_29', 29.99, 'USD', 'completed');
+
+    // 8. Seed progress
+    const insertProgress = db.prepare(`
+      INSERT INTO lesson_progress (user_id, lesson_id, progress_percent, completed, last_accessed)
+      VALUES (?, ?, ?, ?, datetime('now', '-2 days'))
+    `);
+    insertProgress.run(2, 1, 100, 1);
+    insertProgress.run(2, 2, 45, 0);
+
+    // 9. Seed Quizzes for lesson 1
+    db.prepare(`UPDATE lessons SET passing_score = 60 WHERE id = 1`).run();
+    
+    const insertQuestion = db.prepare(`
+      INSERT INTO quiz_questions (lesson_id, question_text, options_json, correct_option_index)
+      VALUES (?, ?, ?, ?)
+    `);
+    
+    insertQuestion.run(
+      1,
+      "Czym różni się kontener od maszyny wirtualnej (VM)?",
+      JSON.stringify([
+        "Kontener współdzieli jądro systemu operacyjnego gospodarza, a VM posiada pełny system operacyjny-gościa.",
+        "VM jest zawsze szybszy i mniejszy niż kontener.",
+        "Kontener wymaga hypervisora do uruchomienia.",
+        "Nie ma żadnych różnic architektonicznych."
+      ]),
+      0
+    );
+
+    insertQuestion.run(
+      1,
+      "Jaka instrukcja w pliku Dockerfile służy do zdefiniowania domyślnego polecenia startowego?",
+      JSON.stringify([
+        "RUN",
+        "CMD",
+        "EXPOSE",
+        "COPY"
+      ]),
+      1
+    );
+
+    insertQuestion.run(
+      1,
+      "Co oznacza flaga '-d' w poleceniu 'docker run'?",
+      JSON.stringify([
+        "Uruchomienie w trybie interaktywnym (interactive)",
+        "Automatyczne usunięcie kontenera po zakończeniu (rm)",
+        "Uruchomienie kontenera w tle (detached mode)",
+        "Przypisanie wolumenu danych (volume)"
+      ]),
+      2
+    );
+
+    // Log seed event
+    db.prepare(`
+      INSERT INTO hrl_activity_logs (user_id, action, details, ip_address)
+      VALUES (null, 'system_init', 'Baza danych HRL Academy Core pomyślnie zainicjalizowana z tabelami PRD i zasilona danymi.', '127.0.0.1')
+    `).run();
+  }
+
+  // Ensure "Cyfrowy Zen" is added for free to the catalog if it doesn't exist
+  const zenCount = db.prepare('SELECT COUNT(*) as count FROM courses WHERE slug = ?').get('cyfrowy-zen') as { count: number };
+  if (zenCount.count === 0) {
+    db.prepare(`
+      INSERT INTO courses (title, slug, description, thumbnail, access_type, price, status, created_by, external_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'Cyfrowy Zen',
+      'cyfrowy-zen',
+      'Kurs Cyfrowy Zen - osiągnij spokój umysłu w cyfrowym świecie. Pełen dostęp edukacyjny przez HRL Core.',
+      'https://picsum.photos/seed/zen/800/450',
+      'free',
+      0.00,
+      'published',
+      1,
+      'https://cyfrowy-zen.hardbanrecordslab.online/'
+    );
+     // Auto-enroll student inside the seeding
+    const zenCourseId = (db.prepare('SELECT id FROM courses WHERE slug = ?').get('cyfrowy-zen') as any).id;
+    // Auto-enroll admin and student to have access (userId 2 is student, 1 is admin)
+    const enroll = db.prepare(`INSERT OR IGNORE INTO enrollments (user_id, course_id, access_type, expires_at) VALUES (?, ?, 'free', null)`);
+    enroll.run(1, zenCourseId);
+    enroll.run(2, zenCourseId);
+  }
+};
+
+try {
+  seedData();
+} catch (e) {
+  console.error("Database seeding issue:", e);
 }
 
 export default db;

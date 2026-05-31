@@ -47,12 +47,30 @@ export interface Lesson {
   lesson_order: number;
   drip_days: number;
   duration_minutes: number;
+  passing_score?: number;
   created_at?: string;
   progress?: {
     percent: number;
     completed: boolean;
     last_accessed: string;
   } | null;
+}
+
+export interface QuizQuestion {
+  id: number;
+  lesson_id: number;
+  question_text: string;
+  options: string[];
+  correct_option_index?: number;
+}
+
+export interface QuizAttempt {
+  id: number;
+  user_id: number;
+  lesson_id: number;
+  score_percent: number;
+  passed: boolean;
+  created_at: string;
 }
 
 export interface Enrollment {

@@ -114,13 +114,13 @@ function getStoredJwt(): string | null {
 }
 
 /**
- * Constructs the API base URL from the Vite environment variable.
- * Falls back to relative paths for same-origin deployments.
+ * Returns empty string for same-origin API paths.
+ * All /api/* requests are proxied through Vercel edge (vercel.json rewrites)
+ * to the backend — no cross-origin absolute URLs needed.
+ * Using absolute VITE_API_URL forces browser CORS preflight and breaks requests.
  */
 function getApiBaseUrl(): string {
-  const base = import.meta.env.VITE_API_URL as string | undefined;
-  if (!base) return "";
-  return base.endsWith("/") ? base.slice(0, -1) : base;
+  return "";
 }
 
 // ---------------------------------------------------------------------------
